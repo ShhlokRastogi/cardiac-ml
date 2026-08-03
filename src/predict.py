@@ -12,12 +12,30 @@ class CardiacDiagnosisPipeline:
     def __init__(self, stage1_weights=STAGE1_WEIGHTS_PATH, stage2_weights=STAGE2_WEIGHTS_PATH, device=DEVICE):
         self.device = device
         self.stage1_model = AttentionUNet(n_channels=1, n_classes=4, bilinear=False).to(self.device)
+
         if os.path.exists(stage1_weights):
-            self.stage1_model.load_state_dict(torch.load(stage1_weights, map_location=self.device, weights_only=False))
-            self.stage1_model.eval()
+            try:
+                with open(stage1_weights, "rb") as f:
+                    header = f.read(7)
+                if header != b"version":
+                    self.stage1_model.load_state_dict(
+                        torch.load(stage1_weights, map_location=self.device, weights_only=False)
+                    )
+                    self.stage1_model.eval()
+            except Exception as e:
+                print(f"Warning: Could not load Stage 1 weights ({e})")
 
         if os.path.exists(stage2_weights):
-            self.stage2_classifier = joblib.load(stage2_weights)
+            try:
+                with open(stage2_weights, "rb") as f:
+                    header = f.read(7)
+                if header != b"version":
+                    self.stage2_classifier = joblib.load(stage2_weights)
+                else:
+                    self.stage2_classifier = None
+            except Exception as e:
+                print(f"Warning: Could not load Stage 2 weights ({e})")
+                self.stage2_classifier = None
         else:
             self.stage2_classifier = None
 
