@@ -13,10 +13,13 @@ PREPROCESSED_MASK_TRAIN = os.path.join(PREPROCESSED_DIR, "masks", "train")
 PREPROCESSED_IMG_TEST = os.path.join(PREPROCESSED_DIR, "images", "test")
 PREPROCESSED_MASK_TEST = os.path.join(PREPROCESSED_DIR, "masks", "test")
 
-# Weights Paths
+# Weights Paths (Supports both naming conventions)
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 STAGE1_WEIGHTS_PATH = os.path.join(MODELS_DIR, "best_attention_unet_model.pth")
-STAGE2_WEIGHTS_PATH = os.path.join(MODELS_DIR, "acdc_disease_classifier.pkl")
+
+stage2_att = os.path.join(MODELS_DIR, "acdc_disease_classifier_att_pred.pkl")
+stage2_std = os.path.join(MODELS_DIR, "acdc_disease_classifier.pkl")
+STAGE2_WEIGHTS_PATH = stage2_att if os.path.exists(stage2_att) else stage2_std
 
 # Device Settings
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
