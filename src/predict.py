@@ -7,12 +7,13 @@ from src.models import AttentionUNet
 from src.post_process import keep_largest_connected_component_3d
 from src.data_prep import extract_clinical_feature_row
 
+
 class CardiacDiagnosisPipeline:
     def __init__(self, stage1_weights=STAGE1_WEIGHTS_PATH, stage2_weights=STAGE2_WEIGHTS_PATH, device=DEVICE):
         self.device = device
         self.stage1_model = AttentionUNet(n_channels=1, n_classes=4, bilinear=False).to(self.device)
         if os.path.exists(stage1_weights):
-            self.stage1_model.load_state_dict(torch.load(stage1_weights, map_location=self.device))
+            self.stage1_model.load_state_dict(torch.load(stage1_weights, map_location=self.device, weights_only=False))
             self.stage1_model.eval()
 
         if os.path.exists(stage2_weights):
@@ -31,7 +32,7 @@ class CardiacDiagnosisPipeline:
             logits = self.stage1_model(tensor_in)
             pred_mask = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()
             pred_slices.append(pred_mask)
-            
+
         raw_mask_3d = np.stack(pred_slices, axis=2).astype(np.uint8)
         clean_mask_3d = keep_largest_connected_component_3d(raw_mask_3d, classes=[1, 2, 3])
         return clean_mask_3d
@@ -41,7 +42,7 @@ class CardiacDiagnosisPipeline:
         es_mask = self.predict_segmentation_3d(es_vol)
         feature_row = extract_clinical_feature_row(patient_id, info_dict, ed_mask, es_mask)
         x_feat = np.array([[feature_row[col] for col in FEATURE_COLS]], dtype=np.float64)
-        
+
         if self.stage2_classifier is not None:
             pred_diagnosis = self.stage2_classifier.predict(x_feat)[0]
             probabilities = self.stage2_classifier.predict_proba(x_feat)[0]

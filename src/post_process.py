@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.ndimage as ndimage
 
+
 def keep_largest_connected_component_3d(pred_volume_3d, classes=[1, 2, 3]):
     cleaned_volume = np.copy(pred_volume_3d)
     for cls in classes:

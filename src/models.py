@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super().__init__()
@@ -19,6 +20,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -29,6 +31,7 @@ class Down(nn.Module):
 
     def forward(self, x):
         return self.maxpool_conv(x)
+
 
 class AttentionBlock(nn.Module):
     def __init__(self, F_g, F_l, F_int):
@@ -57,6 +60,7 @@ class AttentionBlock(nn.Module):
         alpha = self.psi(relu)
         return x * alpha
 
+
 class UpAttention(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
@@ -77,6 +81,7 @@ class UpAttention(nn.Module):
         x = torch.cat([x2_attended, x1], dim=1)
         return self.conv(x)
 
+
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -84,6 +89,7 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
 
 class AttentionUNet(nn.Module):
     def __init__(self, n_channels=1, n_classes=4, bilinear=False):
