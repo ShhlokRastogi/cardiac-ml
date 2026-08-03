@@ -1,6 +1,5 @@
 import os
 import sys
-import io
 import tempfile
 
 # Ensure root directory is first on sys.path
@@ -9,9 +8,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, FileResponse
 import numpy as np
 
 try:
@@ -20,14 +17,14 @@ try:
 except ImportError:
     HAS_NIBABEL = False
 
-from src.config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH, FEATURE_COLS
+from src.config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH
 from src.predict import CardiacDiagnosisPipeline
 from src.preprocess_dataset import preprocess_slice_exact
 
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
-    description="Production MLOps REST API powered by PyTorch Attention U-Net and Scikit-learn Random Forest Classifier. Supports raw NIfTI (.nii/.nii.gz) and Numpy (.npy) image uploads.",
-    version="1.3.0"
+    description="Production MLOps REST API for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis.",
+    version="2.0.0"
 )
 
 # Initialize pipeline engine
@@ -35,42 +32,12 @@ pipeline = CardiacDiagnosisPipeline()
 
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-class FeaturePayload(BaseModel):
-    Height: float = 170.0
-    Weight: float = 70.0
-    BSA: float = 1.84
-    RVEDV: float = 140.0
-    RVESV: float = 50.0
-    RVEF: float = 64.28
-    RVEDVI: float = 76.08
-    RVESVI: float = 27.17
-    LVM_g: float = 120.0
-    LVMI: float = 65.21
-    LVEDV: float = 150.0
-    LVESV: float = 60.0
-    LVEF: float = 60.00
-    LVEDVI: float = 81.52
-    LVESVI: float = 32.60
-    Max_MYO_Thickness_mm: float = 12.0
-
 @app.get("/", response_class=HTMLResponse)
 def serve_ui():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"message": "Cardiac MRI Pathology Diagnosis API is running. Visit /docs for Swagger UI."}
-
-@app.get("/health")
-def health_check():
-    stage1_status = os.path.exists(STAGE1_WEIGHTS_PATH)
-    stage2_status = os.path.exists(STAGE2_WEIGHTS_PATH)
-    return {
-        "status": "healthy" if (stage1_status and stage2_status) else "degraded",
-        "stage1_model_loaded": stage1_status,
-        "stage2_model_loaded": stage2_status,
-        "device": str(DEVICE),
-        "supports_raw_nifti_uploads": HAS_NIBABEL
-    }
+    return {"message": "Cardiac MRI Pathology Diagnosis API. Visit /docs for API documentation."}
 
 @app.post("/predict/from_raw_nifti")
 async def predict_from_raw_nifti(
@@ -81,7 +48,7 @@ async def predict_from_raw_nifti(
     es_nii_file: UploadFile = File(..., description="Raw NIfTI (.nii or .nii.gz) for End-Systole frame")
 ):
     """
-    Directly accepts RAW MRI NIfTI scans (.nii / .nii.gz) for ED and ES cardiac frames.
+    Accepts RAW MRI NIfTI scans (.nii / .nii.gz) for ED and ES cardiac frames.
     Performs on-the-fly intensity normalization, resampling, Attention U-Net 3D segmentation,
     clinical feature calculation, and automated disease diagnosis.
     """
@@ -140,62 +107,6 @@ async def predict_from_raw_nifti(
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process raw NIfTI files: {str(e)}")
-
-@app.post("/predict/end_to_end_from_volumes")
-async def predict_end_to_end_from_volumes(
-    patient_id: str = Form("patient_test"),
-    height_cm: float = Form(170.0),
-    weight_kg: float = Form(70.0),
-    ed_file: UploadFile = File(...),
-    es_file: UploadFile = File(...)
-):
-    """
-    Accepts 3D .npy volume image files + height & weight.
-    Executes full pipeline (Segmentation -> Feature Extraction -> Disease Classification).
-    """
-    try:
-        ed_contents = await ed_file.read()
-        es_contents = await es_file.read()
-        
-        ed_vol = np.load(io.BytesIO(ed_contents)).astype(np.float32)
-        es_vol = np.load(io.BytesIO(es_contents)).astype(np.float32)
-        
-        if ed_vol.ndim == 2: ed_vol = np.expand_dims(ed_vol, axis=2)
-        if es_vol.ndim == 2: es_vol = np.expand_dims(es_vol, axis=2)
-        
-        info_dict = {"Height": str(height_cm), "Weight": str(weight_kg), "Group": "Unknown"}
-        
-        results = pipeline.predict_patient_end_to_end(patient_id, info_dict, ed_vol, es_vol)
-        
-        return {
-            "patient_id": results["Patient_ID"],
-            "predicted_diagnosis": results["Predicted_Diagnosis"],
-            "confidence_percentage": results["Confidence_Percentage"],
-            "class_probabilities": results["Class_Probabilities"],
-            "clinical_features": results["Clinical_Features"]
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"End-to-end image processing error: {str(e)}")
-
-@app.post("/predict/pathology_from_features")
-def predict_pathology_from_features(payload: FeaturePayload):
-    if pipeline.stage2_classifier is None:
-        raise HTTPException(status_code=500, detail="Stage 2 classifier model weights are not loaded.")
-        
-    feat_dict = payload.model_dump()
-    x_feat = np.array([[feat_dict[col] for col in FEATURE_COLS]], dtype=np.float64)
-    
-    pred_class = pipeline.stage2_classifier.predict(x_feat)[0]
-    probs = pipeline.stage2_classifier.predict_proba(x_feat)[0]
-    confidence = float(np.max(probs) * 100.0)
-    class_probabilities = {cls: float(p) for cls, p in zip(pipeline.stage2_classifier.classes_, probs)}
-    
-    return {
-        "predicted_pathology": pred_class,
-        "confidence_percentage": confidence,
-        "class_probabilities": class_probabilities,
-        "features_evaluated": feat_dict
-    }
 
 if __name__ == "__main__":
     import uvicorn

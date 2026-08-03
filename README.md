@@ -52,16 +52,13 @@ cardiac-ml/
 
 ---
 
-## 🌐 API & Web UI Endpoints
+## 🌐 Production API Endpoints
 
 | Endpoint | Method | Input | Description |
 | :--- | :---: | :--- | :--- |
 | **`/`** | `GET` | — | Interactive Web UI Dashboard |
 | **`/docs`** | `GET` | — | Swagger API Interactive Documentation |
-| **`/health`** | `GET` | — | Health check probe & model status |
-| **`/predict/from_raw_nifti`** | `POST` | `.nii` / `.nii.gz` ED & ES files | End-to-end raw MRI file prediction |
-| **`/predict/end_to_end_from_volumes`** | `POST` | `.npy` 3D arrays | End-to-end numpy array volume prediction |
-| **`/predict/pathology_from_features`** | `POST` | JSON feature payload | Direct pathology classification from features |
+| **`/predict/from_raw_nifti`** | `POST` | `.nii` / `.nii.gz` ED & ES files | End-to-end raw MRI scan segmentation & pathology diagnosis |
 
 ---
 
