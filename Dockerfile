@@ -1,36 +1,25 @@
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements & install python dependencies to a virtual environment
-COPY requirements.txt .
-RUN python -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-
-# Final stage
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install runtime dependencies (minimal)
+# Set PYTHONPATH so 'src' module imports resolve cleanly inside container
+ENV PYTHONPATH=/app
+
+# Install minimal C-libraries for OpenCV / Scipy
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
+    libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
+# Install lightweight CPU PyTorch wheel
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining production requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY . .
-
-ENV PATH="/opt/venv/bin:$PATH"
 
 EXPOSE 8000
 
