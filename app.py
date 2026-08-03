@@ -3,35 +3,30 @@ import sys
 import io
 import tempfile
 
-# Ensure root directory and /app are at the head of python path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-sys.path.insert(0, os.getcwd())
-if os.path.exists("/app"):
-    sys.path.insert(0, "/app")
+# Ensure root directory is first on sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import numpy as np
+
 try:
     import nibabel as nib
     HAS_NIBABEL = True
 except ImportError:
     HAS_NIBABEL = False
 
-try:
-    from src.config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH, FEATURE_COLS
-    from src.predict import CardiacDiagnosisPipeline
-    from src.preprocess_dataset import preprocess_slice_exact
-except ImportError:
-    from config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH, FEATURE_COLS
-    from predict import CardiacDiagnosisPipeline
-    from preprocess_dataset import preprocess_slice_exact
+from src.config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH, FEATURE_COLS
+from src.predict import CardiacDiagnosisPipeline
+from src.preprocess_dataset import preprocess_slice_exact
 
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
     description="Production MLOps REST API powered by PyTorch Attention U-Net and Scikit-learn Random Forest Classifier. Supports raw NIfTI (.nii/.nii.gz) and Numpy (.npy) image uploads.",
-    version="1.2.2"
+    version="1.2.3"
 )
 
 # Initialize pipeline engine
