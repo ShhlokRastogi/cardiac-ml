@@ -9,7 +9,8 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
 
@@ -26,11 +27,13 @@ from src.preprocess_dataset import preprocess_slice_exact
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
     description="Production MLOps REST API powered by PyTorch Attention U-Net and Scikit-learn Random Forest Classifier. Supports raw NIfTI (.nii/.nii.gz) and Numpy (.npy) image uploads.",
-    version="1.2.3"
+    version="1.3.0"
 )
 
 # Initialize pipeline engine
 pipeline = CardiacDiagnosisPipeline()
+
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 class FeaturePayload(BaseModel):
     Height: float = 170.0
@@ -50,14 +53,12 @@ class FeaturePayload(BaseModel):
     LVESVI: float = 32.60
     Max_MYO_Thickness_mm: float = 12.0
 
-@app.get("/")
-def root():
-    return {
-        "service": "Cardiac MRI Pathology Diagnosis API",
-        "status": "online",
-        "device": str(DEVICE),
-        "docs_url": "/docs"
-    }
+@app.get("/", response_class=HTMLResponse)
+def serve_ui():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "Cardiac MRI Pathology Diagnosis API is running. Visit /docs for Swagger UI."}
 
 @app.get("/health")
 def health_check():

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardiac MRI AI Diagnosis Platform</title>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --card-bg: rgba(18, 26, 44, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --accent-primary: #6366f1;
+            --accent-cyan: #06b6d4;
+            --accent-gradient: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            background: rgba(9, 13, 22, 0.6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo i {
+            color: #ef4444;
+            -webkit-text-fill-color: #ef4444;
+            font-size: 1.5rem;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success-color);
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 2.5rem auto;
+            padding: 0 1.5rem;
+            width: 100%;
+            flex: 1;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .hero h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .hero p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            max-width: 650px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 868px) {
+            .grid-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2rem;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 1rem;
+        }
+
+        .card-header i {
+            font-size: 1.25rem;
+            color: var(--accent-cyan);
+        }
+
+        .card-header h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            background: rgba(9, 13, 22, 0.7);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .file-upload-box {
+            border: 2px dashed var(--card-border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            background: rgba(9, 13, 22, 0.4);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+
+        .file-upload-box:hover {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .file-upload-box i {
+            font-size: 1.75rem;
+            color: var(--accent-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .file-name {
+            font-size: 0.85rem;
+            color: var(--accent-cyan);
+            margin-top: 0.5rem;
+            word-break: break-all;
+            font-weight: 500;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Results Panel Styles */
+        .results-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+        }
+
+        .results-empty i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .diagnosis-card {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .diagnosis-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+        }
+
+        .diagnosis-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .confidence-pill {
+            display: inline-block;
+            margin-top: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success-color);
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-box {
+            background: rgba(9, 13, 22, 0.6);
+            border: 1px solid var(--card-border);
+            padding: 1rem;
+            border-radius: 10px;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .metric-val {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .prob-bar-container {
+            margin-top: 0.5rem;
+        }
+
+        .prob-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.6rem;
+            font-size: 0.85rem;
+        }
+
+        .prob-label {
+            width: 60px;
+            font-weight: 600;
+        }
+
+        .prob-bar-bg {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 0.75rem;
+        }
+
+        .prob-bar-fill {
+            height: 100%;
+            background: var(--accent-gradient);
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .prob-val {
+            width: 45px;
+            text-align: right;
+            color: var(--text-muted);
+        }
+
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--card-border);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-heart-pulse"></i>
+            <span>CardiacAI Vision</span>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span>AI Model Ready</span>
+        </div>
+    </header>
+
+    <main>
+        <div class="hero">
+            <h1>Automated Cardiac MRI Diagnosis</h1>
+            <p>Upload End-Diastole (ED) and End-Systole (ES) MRI volumes (.nii / .nii.gz / .npy) for instant 3D segmentation and automated disease pathology classification.</p>
+        </div>
+
+        <div class="grid-container">
+            <!-- Left Column: Input Form -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-sliders"></i>
+                    <h2>Patient Scan Upload</h2>
+                </div>
+
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label for="patient_id">Patient ID</label>
+                        <input type="text" id="patient_id" value="patient001" required>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="height_cm">Height (cm)</label>
+                            <input type="number" id="height_cm" value="175" step="0.1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="weight_kg">Weight (kg)</label>
+                            <input type="number" id="weight_kg" value="75" step="0.1" required>
+                        </div>
+                    </div>
+
+                    <!-- ED File Upload -->
+                    <div class="form-group">
+                        <label>End-Diastole (ED) Scan (.nii / .nii.gz / .npy)</label>
+                        <div class="file-upload-box" onclick="document.getElementById('ed_file').click()">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <div style="font-size: 0.9rem;">Choose ED Volume File</div>
+                            <div class="file-name" id="ed_file_name">No file selected</div>
+                        </div>
+                        <input type="file" id="ed_file" onchange="updateFileName(this, 'ed_file_name')" required>
+                    </div>
+
+                    <!-- ES File Upload -->
+                    <div class="form-group">
+                        <label>End-Systole (ES) Scan (.nii / .nii.gz / .npy)</label>
+                        <div class="file-upload-box" onclick="document.getElementById('es_file').click()">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <div style="font-size: 0.9rem;">Choose ES Volume File</div>
+                            <div class="file-name" id="es_file_name">No file selected</div>
+                        </div>
+                        <input type="file" id="es_file" onchange="updateFileName(this, 'es_file_name')" required>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="submitBtn">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Run AI Diagnosis Pipeline</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Right Column: Results Panel -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <h2>Diagnostic Results</h2>
+                </div>
+
+                <div id="resultsContainer">
+                    <div class="results-empty">
+                        <i class="fa-solid fa-file-medical"></i>
+                        <p>Upload ED & ES cardiac MRI volumes and click <strong>Run AI Diagnosis</strong> to generate diagnostic report.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        Production MLOps Cardiac MRI Diagnostics &bull; Powered by Attention U-Net & Random Forest Classifier
+    </footer>
+
+    <script>
+        function updateFileName(input, targetId) {
+            const fileName = input.files[0] ? input.files[0].name : "No file selected";
+            document.getElementById(targetId).textContent = fileName;
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            const edFileInput = document.getElementById('ed_file');
+            const esFileInput = document.getElementById('es_file');
+
+            if (!edFileInput.files[0] || !esFileInput.files[0]) {
+                alert("Please select both ED and ES MRI volume files.");
+                return;
+            }
+
+            const edFileName = edFileInput.files[0].name.toLowerCase();
+            const esFileName = esFileInput.files[0].name.toLowerCase();
+            const isNifti = edFileName.endsWith('.nii') || edFileName.endsWith('.nii.gz');
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing 3D MRI Volume...`;
+
+            const formData = new FormData();
+            formData.append("patient_id", document.getElementById('patient_id').value);
+            formData.append("height_cm", document.getElementById('height_cm').value);
+            formData.append("weight_kg", document.getElementById('weight_kg').value);
+
+            let endpoint = "";
+            if (isNifti) {
+                formData.append("ed_nii_file", edFileInput.files[0]);
+                formData.append("es_nii_file", esFileInput.files[0]);
+                endpoint = "/predict/from_raw_nifti";
+            } else {
+                formData.append("ed_file", edFileInput.files[0]);
+                formData.append("es_file", esFileInput.files[0]);
+                endpoint = "/predict/end_to_end_from_volumes";
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Prediction failed");
+                }
+
+                renderResults(data);
+            } catch (err) {
+                resultsContainer.innerHTML = `
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 1rem; border-radius: 10px; text-align: center;">
+                        <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+                        <div><strong>Error:</strong> ${err.message}</div>
+                    </div>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Run AI Diagnosis Pipeline</span>`;
+            }
+        });
+
+        function renderResults(data) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const feats = data.clinical_features || {};
+            const probs = data.class_probabilities || {};
+
+            const diagMap = {
+                "DCM": "Dilated Cardiomyopathy (DCM)",
+                "HCM": "Hypertrophic Cardiomyopathy (HCM)",
+                "MINF": "Myocardial Infarction (MINF)",
+                "NOR": "Normal (NOR)",
+                "RV": "Right Ventricular Abnormal (RV)"
+            };
+
+            let probBarsHtml = "";
+            for (const [cls, val] of Object.entries(probs)) {
+                const pct = (val * 100).toFixed(1);
+                probBarsHtml += `
+                    <div class="prob-row">
+                        <span class="prob-label">${cls}</span>
+                        <div class="prob-bar-bg">
+                            <div class="prob-bar-fill" style="width: ${pct}%;"></div>
+                        </div>
+                        <span class="prob-val">${pct}%</span>
+                    </div>
+                `;
+            }
+
+            resultsContainer.innerHTML = `
+                <div class="diagnosis-card">
+                    <div class="diagnosis-title">Predicted Pathology</div>
+                    <div class="diagnosis-value">${data.predicted_diagnosis}</div>
+                    <div style="font-size: 0.85rem; color: #d1d5db; margin-top: 0.2rem;">${diagMap[data.predicted_diagnosis] || ""}</div>
+                    <div class="confidence-pill"><i class="fa-solid fa-circle-check"></i> ${data.confidence_percentage.toFixed(1)}% Confidence</div>
+                </div>
+
+                <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-muted);">Clinical Biometrics Extracted</h3>
+                <div class="metrics-grid">
+                    <div class="metric-box">
+                        <div class="metric-label">Left Ventricular EF (LVEF)</div>
+                        <div class="metric-val">${feats.LVEF ? feats.LVEF.toFixed(1) + '%' : 'N/A'}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Right Ventricular EF (RVEF)</div>
+                        <div class="metric-val">${feats.RVEF ? feats.RVEF.toFixed(1) + '%' : 'N/A'}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">LV End-Diastolic Vol Index</div>
+                        <div class="metric-val">${feats.LVEDVI ? feats.LVEDVI.toFixed(1) + ' mL/m²' : 'N/A'}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Max Myocardial Thickness</div>
+                        <div class="metric-val">${feats.Max_MYO_Thickness_mm ? feats.Max_MYO_Thickness_mm.toFixed(1) + ' mm' : 'N/A'}</div>
+                    </div>
+                </div>
+
+                <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-muted);">Probability Distribution</h3>
+                <div class="prob-bar-container">
+                    ${probBarsHtml}
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
