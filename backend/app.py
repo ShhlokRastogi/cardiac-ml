@@ -22,17 +22,22 @@ from src.preprocess_dataset import preprocess_slice_exact
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
     description="Production MLOps REST API backend for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis.",
-    version="2.1.0"
+    version="2.2.0"
 )
 
-# Read allowed frontend origin from environment variable
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# Read allowed frontend origin from environment variable (supports FRONTEND_URL & frontend_url)
+env_frontend = os.getenv("FRONTEND_URL") or os.getenv("frontend_url") or "http://localhost:3000"
+env_frontend_clean = env_frontend.rstrip("/")
+
 allowed_origins = [
-    frontend_url,
+    env_frontend_clean,
+    f"{env_frontend_clean}/",
+    "https://cardiac-ml.vercel.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:8000",
-    "http://127.0.0.1:8000"
+    "http://127.0.0.1:8000",
+    "*"
 ]
 
 app.add_middleware(

@@ -479,8 +479,13 @@
     </footer>
 
     <script>
-        // Configure dynamic API base URL from window configuration or local fallback
-        const API_BASE_URL = window.VITE_API_URL || window.API_URL || "http://localhost:8000";
+        // Configure dynamic API base URL (detects local vs production Render deployment)
+        let defaultApiUrl = "http://localhost:8000";
+        if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+            defaultApiUrl = "https://cardiac-ml-1.onrender.com";
+        }
+
+        const API_BASE_URL = window.VITE_API_URL || window.API_URL || defaultApiUrl;
 
         function updateFileName(input, targetId) {
             const fileName = input.files[0] ? input.files[0].name : "No file selected";
@@ -528,7 +533,8 @@
                 resultsContainer.innerHTML = `
                     <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 1rem; border-radius: 10px; text-align: center;">
                         <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
-                        <div><strong>Error:</strong> ${err.message}</div>
+                        <div><strong>Error connecting to Backend (${API_BASE_URL}):</strong> ${err.message}</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem; color: #9ca3af;">Ensure backend service is running and CORS allows ${window.location.origin}.</div>
                     </div>
                 `;
             } finally {
