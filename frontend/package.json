@@ -1,0 +1,12 @@
+{
+  "name": "cardiac-ml-frontend",
+  "version": "1.0.0",
+  "description": "Frontend UI Client for Cardiac MRI Pathology Diagnosis Platform",
+  "scripts": {
+    "start": "npx serve -s . -l 3000",
+    "dev": "npx serve -s . -l 3000"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}

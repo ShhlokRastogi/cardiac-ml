@@ -3,7 +3,7 @@ import sys
 import tempfile
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure root directory is first on sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,22 +21,50 @@ from src.preprocess_dataset import preprocess_slice_exact
 
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
-    description="Production MLOps REST API for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis.",
-    version="2.0.0"
+    description="Production MLOps REST API backend for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis.",
+    version="2.1.0"
+)
+
+# Read allowed frontend origin from environment variable
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [
+    frontend_url,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize pipeline engine
 pipeline = CardiacDiagnosisPipeline()
 
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+@app.get("/")
+def root():
+    return {
+        "service": "Cardiac MRI Pathology Diagnosis API Backend",
+        "status": "online",
+        "docs_url": "/docs",
+        "prediction_endpoint": "/predict/from_raw_nifti"
+    }
 
 
-@app.get("/", response_class=HTMLResponse)
-def serve_ui():
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "Cardiac MRI Pathology Diagnosis API. Visit /docs for API documentation."}
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "has_nibabel": HAS_NIBABEL,
+        "stage1_model_loaded": pipeline.stage1_model is not None,
+        "stage2_model_loaded": pipeline.stage2_classifier is not None
+    }
 
 
 @app.post("/predict/from_raw_nifti")
@@ -111,4 +139,5 @@ async def predict_from_raw_nifti(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)

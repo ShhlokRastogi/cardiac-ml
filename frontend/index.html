@@ -393,14 +393,14 @@
         </div>
         <div class="status-badge">
             <div class="status-dot"></div>
-            <span>AI Model Ready</span>
+            <span>Frontend Client Online</span>
         </div>
     </header>
 
     <main>
         <div class="hero">
             <h1>Automated Cardiac MRI Diagnosis</h1>
-            <p>Upload End-Diastole (ED) and End-Systole (ES) MRI volumes (.nii / .nii.gz / .npy) for instant 3D segmentation and automated disease pathology classification.</p>
+            <p>Upload End-Diastole (ED) and End-Systole (ES) MRI volumes (.nii / .nii.gz) for instant 3D segmentation and automated disease pathology classification.</p>
         </div>
 
         <div class="grid-container">
@@ -430,10 +430,10 @@
 
                     <!-- ED File Upload -->
                     <div class="form-group">
-                        <label>End-Diastole (ED) Scan (.nii / .nii.gz / .npy)</label>
+                        <label>End-Diastole (ED) Scan (.nii / .nii.gz)</label>
                         <div class="file-upload-box" onclick="document.getElementById('ed_file').click()">
                             <i class="fa-solid fa-cloud-arrow-up"></i>
-                            <div style="font-size: 0.9rem;">Choose ED Volume File</div>
+                            <div style="font-size: 0.9rem;">Choose ED NIfTI Volume File</div>
                             <div class="file-name" id="ed_file_name">No file selected</div>
                         </div>
                         <input type="file" id="ed_file" onchange="updateFileName(this, 'ed_file_name')" required>
@@ -441,10 +441,10 @@
 
                     <!-- ES File Upload -->
                     <div class="form-group">
-                        <label>End-Systole (ES) Scan (.nii / .nii.gz / .npy)</label>
+                        <label>End-Systole (ES) Scan (.nii / .nii.gz)</label>
                         <div class="file-upload-box" onclick="document.getElementById('es_file').click()">
                             <i class="fa-solid fa-cloud-arrow-up"></i>
-                            <div style="font-size: 0.9rem;">Choose ES Volume File</div>
+                            <div style="font-size: 0.9rem;">Choose ES NIfTI Volume File</div>
                             <div class="file-name" id="es_file_name">No file selected</div>
                         </div>
                         <input type="file" id="es_file" onchange="updateFileName(this, 'es_file_name')" required>
@@ -479,6 +479,9 @@
     </footer>
 
     <script>
+        // Configure dynamic API base URL from window configuration or local fallback
+        const API_BASE_URL = window.VITE_API_URL || window.API_URL || "http://localhost:8000";
+
         function updateFileName(input, targetId) {
             const fileName = input.files[0] ? input.files[0].name : "No file selected";
             document.getElementById(targetId).textContent = fileName;
@@ -498,10 +501,6 @@
                 return;
             }
 
-            const edFileName = edFileInput.files[0].name.toLowerCase();
-            const esFileName = esFileInput.files[0].name.toLowerCase();
-            const isNifti = edFileName.endsWith('.nii') || edFileName.endsWith('.nii.gz');
-
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Processing 3D MRI Volume...`;
 
@@ -509,20 +508,11 @@
             formData.append("patient_id", document.getElementById('patient_id').value);
             formData.append("height_cm", document.getElementById('height_cm').value);
             formData.append("weight_kg", document.getElementById('weight_kg').value);
-
-            let endpoint = "";
-            if (isNifti) {
-                formData.append("ed_nii_file", edFileInput.files[0]);
-                formData.append("es_nii_file", esFileInput.files[0]);
-                endpoint = "/predict/from_raw_nifti";
-            } else {
-                formData.append("ed_file", edFileInput.files[0]);
-                formData.append("es_file", esFileInput.files[0]);
-                endpoint = "/predict/end_to_end_from_volumes";
-            }
+            formData.append("ed_nii_file", edFileInput.files[0]);
+            formData.append("es_nii_file", esFileInput.files[0]);
 
             try {
-                const response = await fetch(endpoint, {
+                const response = await fetch(`${API_BASE_URL}/predict/from_raw_nifti`, {
                     method: 'POST',
                     body: formData
                 });
