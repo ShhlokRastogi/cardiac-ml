@@ -2,10 +2,11 @@
 
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg)](https://pytorch.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
+[![MLflow](https://img.shields.io/badge/MLflow-Tracking-0194E2.svg)](https://mlflow.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-An end-to-end, production-grade MLOps medical AI system for 3D Cardiac Cine MRI segmentation and automated pathology classification (**DCM, HCM, MINF, NOR, RV**), restructured into decoupled `/backend` and `/frontend` services for independent deployment.
+An end-to-end, production-grade MLOps medical AI system for 3D Cardiac Cine MRI segmentation and automated pathology classification (**DCM, HCM, MINF, NOR, RV**), restructured into decoupled `/backend` and `/frontend` services with built-in **MLflow Experiment Tracking**.
 
 ---
 
@@ -19,6 +20,14 @@ cardiac-ml/
 │   ├── requirements.txt          # Python package dependencies
 │   ├── .env.example              # Backend environment template
 │   ├── src/                      # Core MLOps Python modules
+│   │   ├── config.py             # Config & MLflow settings
+│   │   ├── train.py              # MLflow-tracked training routines (Stages 1 & 2)
+│   │   ├── evaluate.py           # MLflow-tracked evaluation routines
+│   │   ├── models.py             # Attention U-Net PyTorch architecture
+│   │   ├── data_prep.py          # Clinical biometric feature extraction
+│   │   ├── post_process.py       # 3D Morphological filter
+│   │   ├── predict.py            # Diagnostic inference pipeline
+│   │   └── preprocess_dataset.py # Raw NIfTI normalization & resampling
 │   ├── models/                   # PyTorch & Random Forest weights
 │   └── tests/                    # Pytest unit tests
 ├── frontend/                     # Standalone Web UI Client
@@ -27,13 +36,13 @@ cardiac-ml/
 │   └── .env.example              # Frontend environment template
 ├── .github/workflows/
 │   └── ci.yaml                   # Automated GitHub Actions CI workflow
-├── DEPLOYMENT.md                 # Multi-service deployment guide (Render/Vercel/Railway)
+├── DEPLOYMENT.md                 # Multi-service deployment & MLflow guide
 └── README.md                     # Repository Overview
 ```
 
 ---
 
-## 📊 Performance Benchmarks
+## 📊 Performance Benchmarks & MLflow Tracking
 
 * **Stage 1 (Attention U-Net 3D Segmentation)**:
   * **Mean Dice Overlap**: **`89.13%`** ($LV: 92.56\%, RV: 88.70\%, MYO: 86.12\%$)
@@ -41,6 +50,12 @@ cardiac-ml/
 * **Stage 2 (Random Forest Pathology Classifier)**:
   * **5-Fold Cross-Validation Accuracy**: **`94.00%`**
   * **Unseen Test Set Accuracy**: **`84.00%`** (42 / 50 unseen test patients correctly diagnosed)
+* **MLflow Experiment Tracking**:
+  * Track metrics, parameters, and model artifacts in real time via MLflow dashboard:
+  ```bash
+  cd backend
+  mlflow ui --backend-store-uri sqlite:///mlruns.db --port 5000
+  ```
 
 ---
 

@@ -1,6 +1,6 @@
 # 🚀 Decoupled Deployment Guide: Backend & Frontend
 
-This document explains how to run, configure, and deploy the **Cardiac AI Pathology Diagnosis Platform** as independent services (`/backend` and `/frontend`) from a single monorepo.
+This document explains how to run, configure, and deploy the **Cardiac AI Pathology Diagnosis Platform** as independent services (`/backend` and `/frontend`) from a single monorepo, complete with **MLflow Experiment Tracking**.
 
 ---
 
@@ -14,6 +14,14 @@ cardiac-ml/
 │   ├── requirements.txt          # Python package dependencies
 │   ├── .env.example              # Backend environment template
 │   ├── src/                      # Core MLOps Python modules
+│   │   ├── config.py             # Config & MLflow settings
+│   │   ├── train.py              # MLflow-tracked training routines (Stages 1 & 2)
+│   │   ├── evaluate.py           # MLflow-tracked evaluation routines
+│   │   ├── models.py             # Attention U-Net PyTorch architecture
+│   │   ├── data_prep.py          # Clinical biometric feature extraction
+│   │   ├── post_process.py       # 3D Morphological filter
+│   │   ├── predict.py            # Diagnostic inference pipeline
+│   │   └── preprocess_dataset.py # Raw NIfTI normalization & resampling
 │   ├── models/                   # PyTorch & Random Forest weights
 │   └── tests/                    # Pytest unit tests
 ├── frontend/                     # Standalone Web UI Client
@@ -27,6 +35,30 @@ cardiac-ml/
 
 ---
 
+## 📊 MLflow Experiment Tracking Setup
+
+The platform includes built-in experiment tracking, parameter logging, metric plotting, and model artifact logging with **MLflow**.
+
+### 1. Launch MLflow Dashboard UI
+To view experiment runs, metric comparisons, and model artifacts:
+```bash
+cd backend
+mlflow ui --backend-store-uri sqlite:///mlruns.db --port 5000
+```
+Open **[http://localhost:5000](http://localhost:5000)** in your browser.
+
+### 2. Tracked Metrics & Artifacts
+* **Stage 1 (Attention U-Net)**:
+  * Parameters: Learning rate, batch size, epochs, architecture, loss function.
+  * Metrics: `train_loss`, `val_loss`, `val_mean_dice`, `dice_lv`, `dice_rv`, `dice_myo`.
+  * Artifacts: `best_attention_unet_model.pth`.
+* **Stage 2 (Random Forest Classifier)**:
+  * Parameters: `n_estimators`, `max_depth`, `random_state`, `feature_cols`.
+  * Metrics: `cv_mean_accuracy`, `cv_mean_f1_macro`, `cv_mean_precision_macro`, `cv_mean_recall_macro`.
+  * Artifacts: `acdc_disease_classifier.pkl` & classification reports.
+
+---
+
 ## ⚙️ Environment Variables Reference
 
 ### 1. Backend (`/backend/.env`)
@@ -35,6 +67,8 @@ cardiac-ml/
 | :--- | :---: | :--- | :--- |
 | `FRONTEND_URL` | Optional | `http://localhost:3000` | Allowed origin URL for CORS requests from the frontend client. |
 | `PORT` | Optional | `8000` | HTTP port on which the FastAPI server listens. |
+| `MLFLOW_TRACKING_URI` | Optional | `sqlite:///mlruns.db` | MLflow database backend URI for experiment tracking. |
+| `MLFLOW_EXPERIMENT_NAME` | Optional | `cardiac-mri-segmentation-pathology` | Name of the MLflow experiment. |
 
 ### 2. Frontend (`/frontend/.env`)
 
@@ -46,7 +80,7 @@ cardiac-ml/
 
 ## 💻 Local Development Setup
 
-To run both services locally on different ports (`http://localhost:8000` for Backend, `http://localhost:3000` for Frontend):
+To run services locally (`http://localhost:8000` for Backend, `http://localhost:3000` for Frontend):
 
 ### Terminal 1: Backend Service
 ```bash

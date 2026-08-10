@@ -4,6 +4,11 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+# MLflow Tracking artifacts & database
+mlruns/
+mlruns.db
+*.db
+
 # Large Datasets & Media (Excludes raw/processed data from Git)
 data/
 preprocessed data/

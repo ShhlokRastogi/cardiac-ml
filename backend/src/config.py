@@ -38,3 +38,8 @@ FEATURE_COLS = [
     "LVM_g", "LVMI", "LVEDV", "LVESV", "LVEF", "LVEDVI", "LVESVI",
     "Max_MYO_Thickness_mm"
 ]
+
+# MLflow Experiment Tracking Settings (SQLite backend for robust tracking & registry)
+sqlite_db_path = os.path.join(BASE_DIR, "mlruns.db").replace("\\", "/")
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", f"sqlite:///{sqlite_db_path}")
+MLFLOW_EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME", "cardiac-mri-segmentation-pathology")

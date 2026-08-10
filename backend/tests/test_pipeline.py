@@ -3,6 +3,8 @@ import numpy as np
 from src.config import DEVICE
 from src.models import AttentionUNet
 from src.data_prep import calculate_bsa, calculate_volume_ml
+from src.evaluate import compute_dice_score
+from src.train import train_stage2_disease_classifier
 
 
 def test_model_architecture():
@@ -28,3 +30,25 @@ def test_fastapi_app_import():
     """Verify FastAPI application and pipeline load without syntax/import errors."""
     from app import app
     assert app.title == "Automated Cardiac MRI Segmentation & Pathology Diagnosis API"
+
+
+def test_mlflow_stage2_training_and_evaluation(tmp_path):
+    """Verify Stage 2 training and evaluation routines run cleanly."""
+    np.random.seed(42)
+    x_dummy = np.random.randn(25, 16)
+    y_dummy = np.array(["DCM", "HCM", "MINF", "NOR", "RV"] * 5)
+    save_file = str(tmp_path / "test_clf.pkl")
+
+    clf, metrics = train_stage2_disease_classifier(
+        x_dummy, y_dummy, n_estimators=10, max_depth=3, save_path=save_file
+    )
+    assert clf is not None
+    assert "mean_accuracy" in metrics
+
+    # Test Dice metric calculation
+    pred = np.zeros((20, 20), dtype=np.uint8)
+    gt = np.zeros((20, 20), dtype=np.uint8)
+    pred[5:15, 5:15] = 1
+    gt[5:15, 5:15] = 1
+    dice = compute_dice_score(pred, gt, class_idx=1)
+    assert round(dice, 2) == 1.0
