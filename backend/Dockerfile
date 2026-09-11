@@ -2,8 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Set PYTHONPATH so 'src' module imports resolve cleanly inside container
-ENV PYTHONPATH=/app
+# Environment variables for memory management & module imports
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1
 
 # Install minimal C-libraries for OpenCV / Scipy
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,4 +27,5 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run Uvicorn with single worker to fit inside 512MB RAM free tier
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

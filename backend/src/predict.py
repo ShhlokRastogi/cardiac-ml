@@ -1,4 +1,5 @@
 import os
+import gc
 import joblib
 import numpy as np
 import torch
@@ -6,6 +7,14 @@ from src.config import DEVICE, STAGE1_WEIGHTS_PATH, STAGE2_WEIGHTS_PATH, FEATURE
 from src.models import AttentionUNet
 from src.post_process import keep_largest_connected_component_3d
 from src.data_prep import extract_clinical_feature_row
+
+# Memory optimization for cloud environments (Render 512MB limit)
+torch.set_num_threads(1)
+if hasattr(torch, "set_num_interop_threads"):
+    try:
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
 
 
 class CardiacDiagnosisPipeline:
@@ -39,20 +48,24 @@ class CardiacDiagnosisPipeline:
         else:
             self.stage2_classifier = None
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict_segmentation_3d(self, volume_2d_stack):
         self.stage1_model.eval()
         num_slices = volume_2d_stack.shape[2]
         pred_slices = []
+
         for slice_idx in range(num_slices):
             slice_2d = volume_2d_stack[:, :, slice_idx]
-            tensor_in = torch.tensor(slice_2d, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(self.device)
+            tensor_in = torch.from_numpy(slice_2d).unsqueeze(0).unsqueeze(0).to(self.device)
             logits = self.stage1_model(tensor_in)
-            pred_mask = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy()
+            pred_mask = torch.argmax(logits, dim=1).squeeze(0).cpu().numpy().astype(np.uint8)
             pred_slices.append(pred_mask)
 
-        raw_mask_3d = np.stack(pred_slices, axis=2).astype(np.uint8)
+        raw_mask_3d = np.stack(pred_slices, axis=2)
         clean_mask_3d = keep_largest_connected_component_3d(raw_mask_3d, classes=[1, 2, 3])
+
+        del pred_slices, raw_mask_3d
+        gc.collect()
         return clean_mask_3d
 
     def predict_patient_end_to_end(self, patient_id, info_dict, ed_vol, es_vol):
@@ -71,6 +84,7 @@ class CardiacDiagnosisPipeline:
             confidence = 0.0
             class_probs = {}
 
+        gc.collect()
         return {
             "Patient_ID": patient_id,
             "True_Diagnosis": feature_row.get("Group", "Unknown"),
@@ -81,3 +95,22 @@ class CardiacDiagnosisPipeline:
             "ED_Mask": ed_mask,
             "ES_Mask": es_mask
         }
+
+    def predict_3d_volume(self, volume_2d_stack):
+        return self.predict_segmentation_3d(volume_2d_stack)
+
+    def extract_biometrics(self, patient_id, info_dict, ed_mask, es_mask):
+        return extract_clinical_feature_row(patient_id, info_dict, ed_mask, es_mask)
+
+    def classify_disease(self, feature_row):
+        x_feat = np.array([[feature_row[col] for col in FEATURE_COLS]], dtype=np.float64)
+        if self.stage2_classifier is not None:
+            pred_diagnosis = self.stage2_classifier.predict(x_feat)[0]
+            probabilities = self.stage2_classifier.predict_proba(x_feat)[0]
+            confidence = float(np.max(probabilities) * 100.0)
+            class_probs = {cls: float(p) for cls, p in zip(self.stage2_classifier.classes_, probabilities)}
+        else:
+            pred_diagnosis = "Unknown"
+            confidence = 0.0
+            class_probs = {}
+        return pred_diagnosis, confidence, class_probs

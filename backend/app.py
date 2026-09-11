@@ -1,10 +1,20 @@
 import os
 import sys
+import gc
 import tempfile
 import time
 import numpy as np
+import torch
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
+
+# Restrict PyTorch thread memory allocation on cloud free tiers (Render 512MB RAM limit)
+torch.set_num_threads(1)
+if hasattr(torch, "set_num_interop_threads"):
+    try:
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
 
 # Ensure root directory is first on sys.path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -162,20 +172,32 @@ async def predict_from_raw_nifti(
         ed_slices = [preprocess_slice_exact(ed_raw[:, :, s], current_spacing=zooms_ed)[0] for s in range(ed_raw.shape[2])]
         es_slices = [preprocess_slice_exact(es_raw[:, :, s], current_spacing=zooms_es)[0] for s in range(es_raw.shape[2])]
 
+        del ed_raw, es_raw
+        gc.collect()
+
         ed_vol = np.stack(ed_slices, axis=2).astype(np.float32)
         es_vol = np.stack(es_slices, axis=2).astype(np.float32)
+
+        del ed_slices, es_slices
+        gc.collect()
         timer.measure("preprocessing_ms", t1)
 
         # Phase 3: Stage 1 Deep Learning Segmentation (Attention U-Net)
         t2 = time.perf_counter()
         ed_mask_pred = pipeline.predict_3d_volume(ed_vol)
         es_mask_pred = pipeline.predict_3d_volume(es_vol)
+
+        del ed_vol, es_vol
+        gc.collect()
         timer.measure("stage1_segmentation_ms", t2)
 
         # Phase 4: Post-Processing & 16 Clinical Biometrics Calculation
         t3 = time.perf_counter()
         info_dict = {"Height": str(height_cm), "Weight": str(weight_kg), "Group": "Unknown"}
         features = pipeline.extract_biometrics(patient_id, info_dict, ed_mask_pred, es_mask_pred)
+
+        del ed_mask_pred, es_mask_pred
+        gc.collect()
         timer.measure("postprocessing_biometrics_ms", t3)
 
         # Phase 5: Stage 2 Random Forest Disease Classification
@@ -214,6 +236,8 @@ async def predict_from_raw_nifti(
         }
         trace_logger.log_trace(trace_record)
 
+        gc.collect()
+
         return {
             "patient_id": patient_id,
             "predicted_diagnosis": prediction,
@@ -225,6 +249,7 @@ async def predict_from_raw_nifti(
         }
 
     except Exception as e:
+        gc.collect()
         raise HTTPException(status_code=400, detail=f"Failed to process raw NIfTI files: {str(e)}")
 
 
