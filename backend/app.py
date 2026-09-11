@@ -66,7 +66,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize pipeline engine
+# Initialize pipeline engine (Lazy loads PyTorch weights on demand)
 pipeline = CardiacDiagnosisPipeline()
 
 
@@ -91,8 +91,8 @@ def health_check():
     return {
         "status": "healthy",
         "has_nibabel": HAS_NIBABEL,
-        "stage1_model_loaded": pipeline.stage1_model is not None,
-        "stage2_model_loaded": pipeline.stage2_classifier is not None
+        "stage1_weights_exist": os.path.exists(pipeline.stage1_weights),
+        "stage2_weights_exist": os.path.exists(pipeline.stage2_weights)
     }
 
 
