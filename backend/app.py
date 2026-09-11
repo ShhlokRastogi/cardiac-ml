@@ -1,8 +1,9 @@
 import os
 import sys
 import tempfile
+import time
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure root directory is first on sys.path
@@ -18,14 +19,21 @@ except ImportError:
 
 from src.predict import CardiacDiagnosisPipeline
 from src.preprocess_dataset import preprocess_slice_exact
+from src.observability import (
+    LatencyTimer,
+    DataDriftDetector,
+    trace_logger,
+    metrics_collector
+)
+from src.evals import EvaluatorEngine
 
 app = FastAPI(
     title="Automated Cardiac MRI Segmentation & Pathology Diagnosis API",
-    description="Production MLOps REST API backend for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis.",
-    version="2.2.0"
+    description="Production MLOps REST API backend for raw NIfTI (.nii / .nii.gz) MRI scan segmentation & pathology diagnosis with full Observability & Evals.",
+    version="2.3.0"
 )
 
-# Read allowed frontend origin from environment variable (supports FRONTEND_URL & frontend_url)
+# Read allowed frontend origin from environment variable
 env_frontend = os.getenv("FRONTEND_URL") or os.getenv("frontend_url") or "http://localhost:3000"
 env_frontend_clean = env_frontend.rstrip("/")
 
@@ -57,8 +65,14 @@ def root():
     return {
         "service": "Cardiac MRI Pathology Diagnosis API Backend",
         "status": "online",
+        "version": "2.3.0",
         "docs_url": "/docs",
-        "prediction_endpoint": "/predict/from_raw_nifti"
+        "endpoints": {
+            "prediction": "/predict/from_raw_nifti",
+            "metrics": "/metrics",
+            "traces": "/observability/traces",
+            "evals_report": "/evals/report"
+        }
     }
 
 
@@ -72,6 +86,31 @@ def health_check():
     }
 
 
+@app.get("/metrics")
+def get_prometheus_metrics():
+    """
+    Returns aggregated Prometheus/JSON observability metrics:
+    - Total prediction count
+    - Average total pipeline latency (ms)
+    - Sub-phase latency breakdown (ms)
+    - Diagnosis class distribution
+    - Total data drift alert count
+    """
+    return metrics_collector.get_summary_metrics()
+
+
+@app.get("/observability/traces")
+def get_recent_traces(limit: int = Query(20, ge=1, le=100)):
+    """Returns the most recent structured JSONL inference traces."""
+    return trace_logger.read_recent_traces(limit=limit)
+
+
+@app.get("/evals/report")
+def get_evaluation_report():
+    """Returns automated evaluation benchmark metrics and data drift status."""
+    return EvaluatorEngine.generate_full_eval_report()
+
+
 @app.post("/predict/from_raw_nifti")
 async def predict_from_raw_nifti(
     patient_id: str = Form("patient_raw"),
@@ -82,18 +121,21 @@ async def predict_from_raw_nifti(
 ):
     """
     Accepts RAW MRI NIfTI scans (.nii / .nii.gz) for ED and ES cardiac frames.
-    Performs on-the-fly intensity normalization, resampling, Attention U-Net 3D segmentation,
-    clinical feature calculation, and automated disease diagnosis.
+    Performs full sub-phase latency tracking, intensity normalization, resampling,
+    Attention U-Net 3D segmentation, clinical feature calculation, data drift checks,
+    and automated disease diagnosis.
     """
     if not HAS_NIBABEL:
         raise HTTPException(status_code=500, detail="nibabel library is required for raw NIfTI parsing.")
 
+    timer = LatencyTimer()
+
     try:
-        # Detect exact file extensions (.nii vs .nii.gz)
+        # Phase 1: NIfTI I/O
+        t0 = time.perf_counter()
         ext_ed = ".nii.gz" if ed_nii_file.filename.endswith(".nii.gz") else ".nii"
         ext_es = ".nii.gz" if es_nii_file.filename.endswith(".nii.gz") else ".nii"
 
-        # Save temporary files with correct extensions
         with tempfile.NamedTemporaryFile(suffix=ext_ed, delete=False) as tmp_ed:
             tmp_ed.write(await ed_nii_file.read())
             tmp_ed_path = tmp_ed.name
@@ -102,7 +144,6 @@ async def predict_from_raw_nifti(
             tmp_es.write(await es_nii_file.read())
             tmp_es_path = tmp_es.name
 
-        # Parse NIfTI files
         nii_ed = nib.load(tmp_ed_path)
         nii_es = nib.load(tmp_es_path)
 
@@ -112,32 +153,77 @@ async def predict_from_raw_nifti(
         zooms_ed = nii_ed.header.get_zooms()[:2]
         zooms_es = nii_es.header.get_zooms()[:2]
 
-        # Clean up temporary files
         os.remove(tmp_ed_path)
         os.remove(tmp_es_path)
+        timer.measure("nifti_io_ms", t0)
 
-        # Preprocess slices (Z-Score + Resample + Crop)
+        # Phase 2: Slice Preprocessing (Normalization + Spline Resampling + Crop)
+        t1 = time.perf_counter()
         ed_slices = [preprocess_slice_exact(ed_raw[:, :, s], current_spacing=zooms_ed)[0] for s in range(ed_raw.shape[2])]
         es_slices = [preprocess_slice_exact(es_raw[:, :, s], current_spacing=zooms_es)[0] for s in range(es_raw.shape[2])]
 
         ed_vol = np.stack(ed_slices, axis=2).astype(np.float32)
         es_vol = np.stack(es_slices, axis=2).astype(np.float32)
+        timer.measure("preprocessing_ms", t1)
 
+        # Phase 3: Stage 1 Deep Learning Segmentation (Attention U-Net)
+        t2 = time.perf_counter()
+        ed_mask_pred = pipeline.predict_3d_volume(ed_vol)
+        es_mask_pred = pipeline.predict_3d_volume(es_vol)
+        timer.measure("stage1_segmentation_ms", t2)
+
+        # Phase 4: Post-Processing & 16 Clinical Biometrics Calculation
+        t3 = time.perf_counter()
         info_dict = {"Height": str(height_cm), "Weight": str(weight_kg), "Group": "Unknown"}
+        features = pipeline.extract_biometrics(patient_id, info_dict, ed_mask_pred, es_mask_pred)
+        timer.measure("postprocessing_biometrics_ms", t3)
 
-        results = pipeline.predict_patient_end_to_end(patient_id, info_dict, ed_vol, es_vol)
+        # Phase 5: Stage 2 Random Forest Disease Classification
+        t4 = time.perf_counter()
+        prediction, confidence, probs = pipeline.classify_disease(features)
+        timer.measure("stage2_classification_ms", t4)
+
+        total_ms = timer.total()
+        latency_breakdown = {
+            "nifti_io_ms": timer.latencies.get("nifti_io_ms", 0.0),
+            "preprocessing_ms": timer.latencies.get("preprocessing_ms", 0.0),
+            "stage1_segmentation_ms": timer.latencies.get("stage1_segmentation_ms", 0.0),
+            "postprocessing_biometrics_ms": timer.latencies.get("postprocessing_biometrics_ms", 0.0),
+            "stage2_classification_ms": timer.latencies.get("stage2_classification_ms", 0.0),
+            "total_pipeline_ms": total_ms
+        }
+
+        # Data Drift & Out-of-Bounds Biometric Check
+        drift_check = DataDriftDetector.check_biometric_drift(features)
+
+        # Record metrics & write JSONL trace
+        metrics_collector.record_inference(
+            predicted_class=prediction,
+            latency_breakdown=latency_breakdown,
+            has_drift=drift_check["has_data_drift"]
+        )
+
+        trace_record = {
+            "trace_id": str(time.time_ns()),
+            "timestamp": str(np.datetime64("now")),
+            "patient_id": patient_id,
+            "predicted_diagnosis": prediction,
+            "confidence_percentage": round(confidence, 2),
+            "latency_breakdown_ms": latency_breakdown,
+            "data_drift": drift_check
+        }
+        trace_logger.log_trace(trace_record)
 
         return {
-            "patient_id": results["Patient_ID"],
-            "raw_files_processed": {
-                "ED_file": ed_nii_file.filename,
-                "ES_file": es_nii_file.filename
-            },
-            "predicted_diagnosis": results["Predicted_Diagnosis"],
-            "confidence_percentage": results["Confidence_Percentage"],
-            "class_probabilities": results["Class_Probabilities"],
-            "clinical_features": results["Clinical_Features"]
+            "patient_id": patient_id,
+            "predicted_diagnosis": prediction,
+            "confidence_percentage": confidence,
+            "class_probabilities": probs,
+            "clinical_features": features,
+            "latency_breakdown_ms": latency_breakdown,
+            "data_drift_monitoring": drift_check
         }
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process raw NIfTI files: {str(e)}")
 
